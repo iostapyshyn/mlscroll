@@ -63,15 +63,14 @@ If set to nil, you must arrange to include
   :group 'mlscroll
   :type 'boolean)
 
-(defcustom mlscroll-in-color (face-attribute 'region :background nil t)
-  "Background color for range inside of current window bounds."
-  :group 'mlscroll
-  :type 'color)
-
-(defcustom mlscroll-out-color (face-attribute 'default :background)
-  "Background color for range outside of current window bounds."
-  :group 'mlscroll
-  :type 'color)
+(defface mlscroll-flank-face
+  '((t (:inherit region)))
+  "Face for invisible buffer parts."
+  :group 'mlscroll)
+(defface mlscroll-cur-face
+  '((t (:inherit match)))
+  "Face for visible buffer parts."
+  :group 'mlscroll)
 
 (defcustom mlscroll-width-chars 12
   "Width of the mode line scroll indicator in characters.
@@ -253,8 +252,6 @@ which to evaluate the line positions."
 	 (right (max 0 (- w cur left))))
     (list left cur right start end last)))
 
-(defvar mlscroll-flank-face-properties nil)
-(defvar mlscroll-cur-face-properties nil)
 (defconst mlscroll-extra-properties
   `(local-map
     (keymap (mode-line keymap
@@ -321,13 +318,13 @@ by default if `mlscroll-right-align' is non-nil), in
 `mode-line-end-spaces'."
   (pcase-let* ((`(,left ,cur ,right) (mlscroll--part-widths))
 	       (bar (concat
-		     (propertize " " 'face mlscroll-flank-face-properties
+		     (propertize " " 'face 'mlscroll-flank-face
 				 'display
 				 `(space :width (,(+ left mlscroll-border))))
-		     (propertize " " 'face mlscroll-cur-face-properties
+		     (propertize " " 'face 'mlscroll-cur-face
 				 'display
 				 `(space :width (,cur)))
-		     (propertize " " 'face mlscroll-flank-face-properties
+		     (propertize " " 'face 'mlscroll-flank-face
 				 'display
 				 `(space :width (,(+ right mlscroll-border)))))))
     (add-text-properties 0 (length bar) mlscroll-extra-properties bar)
@@ -370,19 +367,19 @@ by default if `mlscroll-right-align' is non-nil), in
 	      line-number-display-limit-width 2000000)
 	(if (= mlscroll-mode-line-font-width 1) ;sometimes mode-line font fails
 	    (setq mlscroll-mode-line-font-width (default-font-width)))
-	(if (and mlscroll-border (> mlscroll-border 0))
-	    (setq mlscroll-flank-face-properties        ; For box to enclose all 3 segments 
-		  `(:foreground ,mlscroll-out-color     ; (no internal borders) , they must 
-		    :box (:line-width ,mlscroll-border) ; have the same :foreground 
-		    :inverse-video t)			; (after inversion)
-		  mlscroll-cur-face-properties
-		  `(:foreground ,mlscroll-in-color
-		    :box (:line-width ,mlscroll-border)
-		    :inverse-video t))
-	  (setq mlscroll-flank-face-properties
-		`(:background ,mlscroll-out-color)
-		mlscroll-cur-face-properties
-		`(:background ,mlscroll-in-color)))
+	;; (if (and mlscroll-border (> mlscroll-border 0))
+	;;     (setq mlscroll-flank-face-properties        ; For box to enclose all 3 segments
+	;; 	  `(:foreground ,mlscroll-out-color     ; (no internal borders) , they must
+	;; 	    :box (:line-width ,mlscroll-border) ; have the same :foreground
+	;; 	    :inverse-video t)			; (after inversion)
+	;; 	  mlscroll-cur-face-properties
+	;; 	  `(:foreground ,mlscroll-in-color
+	;; 	    :box (:line-width ,mlscroll-border)
+	;; 	    :inverse-video t))
+	;;   (setq mlscroll-flank-face-properties
+	;; 	`(:background ,mlscroll-out-color)
+	;; 	mlscroll-cur-face-properties
+	;; 	`(:background ,mlscroll-in-color)))
 
 	(when mlscroll-right-align
 	  (when (eq mlscroll-alter-percent-position 'replace)
