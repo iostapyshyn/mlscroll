@@ -46,8 +46,7 @@
 
 (defcustom mlscroll-alter-percent-position t
   "Whether to remove or replace the mode line percentage position.
-Removes if `t', replaces if set to the symbol 'replace (but only
-if `mlscroll-right-align' is `nil'). Only effective if
+Removes if `t', replaces if set to the symbol 'replace. Only effective if
 `mode-line-percent-position' is at the beginning of
 `mode-line-position'."
   :group 'mlscroll
@@ -55,13 +54,6 @@ if `mlscroll-right-align' is `nil'). Only effective if
 	  (const :tag "do nothing" nil)
 	  (const :tag "remove" t)
 	  (const :tag "replace" 'replace)))
-
-(defcustom mlscroll-right-align t
-  "Whether to right-align the scrollbar within the mode line.
-If set to nil, you must arrange to include
-'(eval: (mlscroll-mode-line)) somewhere in `mode-line-format'."
-  :group 'mlscroll
-  :type 'boolean)
 
 (defface mlscroll-flank-face
   '((t (:inherit region)))
@@ -87,13 +79,6 @@ Derived from `mlscroll-width-chars'.")
 (defcustom mlscroll-minimum-current-width
   (if (> (default-font-width) 1) 2 1) ;terminal chars = 1 "pixel" wide
   "Minimum pixel width of the current window region (central) bar."
-  :group 'mlscroll
-  :type 'integer)
-
-(defcustom mlscroll-border nil
-  "Border in pixels around the scrollbar.
-Drawn in the mode line's background color.  Defaults to 1/4 of the
-default font's character height."
   :group 'mlscroll
   :type 'integer)
 
@@ -153,15 +138,13 @@ window limits and `point-max' of the buffer in that window."
   "Scroll to the position identified by position X and component IDX.
 IDX, if set, is an integer -- 0, 1, or 2 -- identifying which
 component of the scrollbar we are in (0=left, 1=current,
-2=right).  If IDX is non-nil, X is a pixel position within that
-component, starting from 0 at left, _including_ border (for idx=1
-only).  If IDX is nil, X can be either a symbol or an integer.
-If it's the symbol 'up or 'down, the window is scrolled up or
-down by half its height.  Otherwise, X is interpreted as a pixel
-position within the entire scrollbar (_not_ including borders).
-If WIN is set, it is a window whose buffer to scroll.  Returns
-the absolute x position within the full bar (with border width
-removed)."
+2=right). If IDX is non-nil, X is a pixel position within that
+component, starting from 0 at left. If IDX is nil, X can be
+either a symbol or an integer. If it's the symbol 'up or 'down,
+the window is scrolled up or down by half its height. Otherwise,
+X is interpreted as a pixel position within the entire scrollbar.
+If WIN is set, it is a window whose buffer to scroll. Returns the
+absolute x position within the full bar."
   (pcase-let* ((`(,left ,cur ,right ,start ,end ,last)
 		(mlscroll--part-widths win))
 	       (barwidth (+ left cur right))
@@ -170,7 +153,7 @@ removed)."
 					(- (/ (float cur) 2))
 				      (/ (* (float cur) 3) 2))))
 			   ((null idx) x)
-			   ((= idx 0) (- x mlscroll-border))
+			   ((= idx 0) x)
 			   ((= idx 1) (+ x left))
 			   ((= idx 2) (+ x left cur))
 			   (t x)))
@@ -228,11 +211,11 @@ START-EVENT is the automatically passed mouse event."
 	(when (and
 	       (eq (posn-area end) 'mode-line)
 	       (>= xnew 0)
-	       (<= xnew (- mlscroll-width mlscroll-border)))
+	       (<= xnew mlscroll-width))
 	  (mlscroll-scroll-to xnew nil start-win))))))
 
 (defun mlscroll--part-widths (&optional win)
-  "Pixel widths of the bars (not including border).
+  "Pixel widths of the bars.
 Also returns line numbers at window start & end and (point-max).
 If optional argument WIN is passed, it should be a window in
 which to evaluate the line positions."
@@ -240,7 +223,7 @@ which to evaluate the line positions."
 	 (start (car lines))
 	 (end (nth 1 lines))
 	 (last (nth 2 lines))
-	 (w (- mlscroll-width (* 2 mlscroll-border)))
+	 (w mlscroll-width)
 	 (cur (max mlscroll-minimum-current-width
 		   (round
 		    (* w (/ (float (- end start -1))
@@ -313,28 +296,21 @@ which to evaluate the line positions."
 
 (defun mlscroll-mode-line ()
   "Generate text for mode line scrollbar.
-Intended to be set in an :eval in the mode line, e.g. (as is done
-by default if `mlscroll-right-align' is non-nil), in
-`mode-line-end-spaces'."
+Intended to be set in an :eval in the mode line."
   (pcase-let* ((`(,left ,cur ,right) (mlscroll--part-widths))
 	       (bar (concat
 		     (propertize " " 'face 'mlscroll-flank-face
 				 'display
-				 `(space :width (,(+ left mlscroll-border))))
-		     (propertize " " 'face 'mlscroll-cur-face
+				 `(space :width (,left)))
+		     (propertize (make-string (- mlscroll-width-chars 2) ? )
+                                 'face 'mlscroll-cur-face
 				 'display
 				 `(space :width (,cur)))
 		     (propertize " " 'face 'mlscroll-flank-face
 				 'display
-				 `(space :width (,(+ right mlscroll-border)))))))
+				 `(space :width (,right))))))
     (add-text-properties 0 (length bar) mlscroll-extra-properties bar)
-    (if mlscroll-right-align
-	(list
-	 (propertize " " 'display ; spacer -- align right
-		     `(space :align-to (- (+ right right-margin)
-					  (,(- mlscroll-width mlscroll-border)))))
-	  bar)
-      bar)))
+    bar))
 
 (defvar mlscroll-saved [nil nil]
   "Saved parts of mode line:
@@ -352,12 +328,6 @@ by default if `mlscroll-right-align' is non-nil), in
 		 (and (face-attribute 'mode-line-inactive :box)
 		      (not (eq 'unspecified
 			       (face-attribute 'mode-line-inactive :box)))))))
-	(unless (or mlscroll-border mode-line-has-box)
-	  (setq mlscroll-border (floor (/ (float (default-font-height)) 4))))
-	(when (and mlscroll-border (> mlscroll-border 0) mode-line-has-box)
-	  (message "MLScroll border is incompatible with mode-line :box, disabling")
-	  (setq mlscroll-border 0))
-	(unless mlscroll-border (setq mlscroll-border 0))
 	(setq mlscroll-mode-line-font-width
 	      (if (display-multi-font-p)
 		  (aref (font-info (face-font 'mode-line)) 11)
@@ -367,26 +337,6 @@ by default if `mlscroll-right-align' is non-nil), in
 	      line-number-display-limit-width 2000000)
 	(if (= mlscroll-mode-line-font-width 1) ;sometimes mode-line font fails
 	    (setq mlscroll-mode-line-font-width (default-font-width)))
-	;; (if (and mlscroll-border (> mlscroll-border 0))
-	;;     (setq mlscroll-flank-face-properties        ; For box to enclose all 3 segments
-	;; 	  `(:foreground ,mlscroll-out-color     ; (no internal borders) , they must
-	;; 	    :box (:line-width ,mlscroll-border) ; have the same :foreground
-	;; 	    :inverse-video t)			; (after inversion)
-	;; 	  mlscroll-cur-face-properties
-	;; 	  `(:foreground ,mlscroll-in-color
-	;; 	    :box (:line-width ,mlscroll-border)
-	;; 	    :inverse-video t))
-	;;   (setq mlscroll-flank-face-properties
-	;; 	`(:background ,mlscroll-out-color)
-	;; 	mlscroll-cur-face-properties
-	;; 	`(:background ,mlscroll-in-color)))
-
-	(when mlscroll-right-align
-	  (when (eq mlscroll-alter-percent-position 'replace)
-	    (message "MLScroll: cannot both right-align and replace percent position, disabling replace")
-	    (setq mlscroll-alter-percent-position t))
-	  (setf (aref mlscroll-saved 1) mode-line-end-spaces
-		mode-line-end-spaces '(:eval (mlscroll-mode-line))))
 
 	(if (and mlscroll-alter-percent-position
 		 (eq (cadar mode-line-position) 'mode-line-percent-position))
