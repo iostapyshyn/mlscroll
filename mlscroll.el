@@ -340,7 +340,7 @@ by default if `mlscroll-right-align' is non-nil), in
       bar)))
 
 (defvar mlscroll-saved [nil nil]
-  "Saved parts of mode line: 
+  "Saved parts of mode line:
 [ (car mode-line-position) mode-line-end-spaces ].")
 
 ;;;###autoload
